@@ -20,33 +20,53 @@ export const authOptions: NextAuthOptions = {
           response_type: 'code',
           prompt: 'consent'
         }
+      },
+      profile: async (profile, tokens) => {
+        const res = await fetch(
+          'https://api.atlassian.com/oauth/token/accessible-resources',
+          {
+            headers: {
+              Authorization: `Bearer ${tokens.access_token}`
+            }
+          }
+        )
+
+        const data = await res.json()
+
+        const account = data[0]
+
+        const url = `https://api.atlassian.com/ex/jira/${account.id}/rest/api/3`
+
+        return {
+          id: profile.account_id,
+          name: profile.name,
+          email: profile.email,
+          image: profile.picture,
+          api_url: url
+        }
       }
     })
   ],
 
   callbacks: {
-    async signIn({ user, account, profile, email, credentials }) {
-      return true
-    },
-    async redirect({ url, baseUrl }) {
-      return baseUrl
-    },
-    async session({ session, user, token }) {
-      session.accessToken = token.accessToken
+    async session({ session, token }) {
+      if (token?.api_url) {
+        session.api_url = token.api_url
+      }
 
-      if (session.user) {
-        session.user.id = token.userId
+      if (token?.access_token) {
+        session.access_token = token.access_token
       }
 
       return session
     },
-    async jwt({ token, user, account, profile, isNewUser }) {
-      if (account) {
-        token.accessToken = account.access_token
+    async jwt({ token, user, account }) {
+      if (user?.api_url) {
+        token.api_url = user.api_url
       }
 
-      if (profile?.account_id) {
-        token.userId = profile.account_id
+      if (account?.access_token) {
+        token.access_token = account.access_token
       }
 
       return token
